@@ -1,0 +1,237 @@
+/// System-wide configuration items keyed by namespace and key with optional
+/// environment scoping. Holds raw string values with an explicit value_type
+/// for interpretation at runtime. Managed by administrators and referenced
+/// by application services for behavior switches. Optionally linked to a
+/// governing policy {@link todo_app_service_policies} and created by a user
+/// {@link todo_app_users}. Records support lifecycle via active flag and
+/// effective window.
+///
+/// @namespace Systematic
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_service_configurations {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Administrative actor who last created/updated this configuration. Target
+  /// model's {@link todo_app_users.id}.
+  todo_app_user_id String?
+  
+  /// Optional governing policy for this configuration. Target model's {@link
+  /// todo_app_service_policies.id}.
+  todo_app_service_policy_id String?
+  
+  /// Logical grouping for configuration keys (e.g., "core", "auth",
+  /// "billing"). Used to segment settings by domain.
+  namespace String
+  
+  /// Optional environment discriminator (e.g., "prod", "staging", "dev"). Null
+  /// indicates environment-agnostic.
+  environment String?
+  
+  /// Business key name unique within (namespace, environment).
+  /// Case-insensitive comparisons are handled at application level if needed.
+  key String
+  
+  /// Stored configuration value in raw string form. Consumers interpret
+  /// according to value_type.
+  value String
+  
+  /// Type hint for interpreting the stored value (e.g., "string", "int",
+  /// "double", "boolean", "datetime", "uri").
+  value_type String
+  
+  /// Whether this value is sensitive and should be redacted in logs and
+  /// listings.
+  is_secret Boolean
+  
+  /// Human-readable description and operational notes for this configuration
+  /// key.
+  description String?
+  
+  /// Whether this configuration is currently enabled for evaluation.
+  active Boolean
+  
+  /// Optional activation start time for the configuration in business terms.
+  effective_from DateTime?
+  
+  /// Optional deactivation time after which the configuration is not applied.
+  effective_to DateTime?
+  
+  /// Creation timestamp for this configuration record.
+  created_at DateTime
+  
+  /// Last update timestamp for this configuration record.
+  updated_at DateTime
+  
+  /// Soft delete timestamp. Null indicates the record is active/not deleted.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  policy todo_app_service_policies? @relation(fields: [todo_app_service_policy_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_app_user_id])
+  
+  @@unique([namespace, key, environment])
+  @@index([active, namespace, environment], map: "todo_app_service_configurations_active_namespace_envir_bfd2ec4f")
+  @@index([namespace, created_at])
+  @@index([todo_app_service_policy_id, active], map: "todo_app_service_configurations_todo_app_service_polic_5316b24e")
+}
+
+/// Business policies governing application behavior, rate limits, retention,
+/// and other constraints. Each policy has a globally unique code and stores
+/// a raw value as string with value_type indicating how to interpret it.
+/// Managed independently by administrators; referenced by other entities
+/// including {@link todo_app_service_configurations} and {@link
+/// todo_app_feature_flags}. Created-by user reference links to {@link
+/// todo_app_users}.
+///
+/// @namespace Systematic
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_service_policies {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Administrative owner/creator of this policy. Target model's {@link
+  /// todo_app_users.id}.
+  todo_app_user_id String?
+  
+  /// Logical grouping for the policy (e.g., "auth", "security", "privacy").
+  namespace String
+  
+  /// Globally unique policy code used by services to look up the policy.
+  code String
+  
+  /// Human-readable name of the policy.
+  name String
+  
+  /// Detailed business description and operational guidance for this policy.
+  description String?
+  
+  /// Policy value stored as raw string; interpreted by services using
+  /// value_type.
+  value String
+  
+  /// Type hint for interpreting the policy value (e.g., "string", "int",
+  /// "double", "boolean", "datetime", "uri").
+  value_type String
+  
+  /// Whether this policy is currently in effect.
+  active Boolean
+  
+  /// Optional activation start time for the policy in business terms.
+  effective_from DateTime?
+  
+  /// Optional end time after which the policy is no longer in effect.
+  effective_to DateTime?
+  
+  /// Creation timestamp for this policy record.
+  created_at DateTime
+  
+  /// Last update timestamp for this policy record.
+  updated_at DateTime
+  
+  /// Soft delete timestamp. Null indicates the record is active/not deleted.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  todo_app_service_configurations todo_app_service_configurations[]
+  todo_app_feature_flags todo_app_feature_flags[]
+  
+  @@unique([code])
+  @@index([active, namespace])
+  @@index([effective_from, effective_to])
+  @@index([todo_app_user_id, active])
+}
+
+/// Feature flag definitions for conditional enablement and staged rollouts.
+/// Supports environment and namespace scoping, percentage rollouts, and
+/// optional targeting notes. Administrators manage flags independently;
+/// flags may optionally be associated with a governing policy {@link
+/// todo_app_service_policies} and are created by {@link todo_app_users}.
+///
+/// @namespace Systematic
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_feature_flags {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Optional governing policy reference. Target model's {@link
+  /// todo_app_service_policies.id}.
+  todo_app_service_policy_id String?
+  
+  /// Administrative owner/creator of the feature flag. Target model's {@link
+  /// todo_app_users.id}.
+  todo_app_user_id String?
+  
+  /// Logical grouping for the feature flag (e.g., "ui", "payments", "sync").
+  namespace String
+  
+  /// Deployment environment for the flag (e.g., "prod", "staging", "dev").
+  /// Null indicates environment-agnostic.
+  environment String?
+  
+  /// Unique flag code within (namespace, environment). Used by services to
+  /// evaluate features.
+  code String
+  
+  /// Human-readable name of the feature flag.
+  name String
+  
+  /// Business description, rollout plan, and guardrail notes for this flag.
+  description String?
+  
+  /// Whether the flag is enabled for evaluation.
+  active Boolean
+  
+  /// Percentage-based rollout for progressive exposure (0–100). Applied only
+  /// when active.
+  rollout_percentage Int
+  
+  /// Optional description of intended audience or segmentation rules in
+  /// business terms.
+  target_audience String?
+  
+  /// Optional start time when the flag begins evaluation.
+  start_at DateTime?
+  
+  /// Optional end time after which the flag is no longer evaluated.
+  end_at DateTime?
+  
+  /// Creation timestamp for this feature flag record.
+  created_at DateTime
+  
+  /// Last update timestamp for this feature flag record.
+  updated_at DateTime
+  
+  /// Soft delete timestamp. Null indicates the record is active/not deleted.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  policy todo_app_service_policies? @relation(fields: [todo_app_service_policy_id], references: [id], onDelete: Cascade)
+  user todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_app_user_id])
+  
+  @@unique([namespace, code, environment])
+  @@index([active, namespace, environment])
+  @@index([rollout_percentage, namespace])
+  @@index([todo_app_service_policy_id, active])
+}

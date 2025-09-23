@@ -1,0 +1,300 @@
+/// Core user accounts for the todoApp. Stores authentication credentials,
+/// account lifecycle status, and verification state. Serves as the parent
+/// entity for user profile, preferences, sessions, and role assignments.
+/// Other actor-related models reference this model via 1:1 relationships.
+/// This table is central to access control and privacy boundaries.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_users {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// User's unique email address for authentication and notifications. Acts as
+  /// the login identifier. Must be unique across the system.
+  email String
+  
+  /// Argon2/bcrypt or similar password hash. Never store plaintext passwords.
+  password_hash String
+  
+  /// Account lifecycle state (e.g., pending_verification, active, suspended,
+  /// deactivated). Controls whether the user can authenticate.
+  status String
+  
+  /// Whether the user's email has been verified according to policy.
+  email_verified Boolean
+  
+  /// Timestamp when email was verified. Null until verification completes.
+  verified_at DateTime?
+  
+  /// Timestamp of the last successful login for user activity tracking and
+  /// security reviews.
+  last_login_at DateTime?
+  
+  /// Creation timestamp for the user record.
+  created_at DateTime
+  
+  /// Last update timestamp for the user record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp. When set, the record is considered deleted and
+  /// excluded from normal flows.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  todo_app_service_configurations todo_app_service_configurations[]
+  todo_app_service_policies todo_app_service_policies[]
+  todo_app_feature_flags todo_app_feature_flags[]
+  todo_app_user_profiles todo_app_user_profiles?
+  todo_app_user_preferences todo_app_user_preferences?
+  todo_app_guestvisitors todo_app_guestvisitors[]
+  todo_app_todousers todo_app_todousers[]
+  todo_app_systemadmins todo_app_systemadmins[]
+  todo_app_sessions todo_app_sessions[]
+  todo_app_email_verifications todo_app_email_verifications[]
+  todo_app_password_resets todo_app_password_resets[]
+  todo_app_login_attempts todo_app_login_attempts[]
+  todo_app_todos todo_app_todos[]
+  todo_app_todo_activities todo_app_todo_activities[]
+  todo_app_todo_deletion_events todo_app_todo_deletion_events[]
+  todo_app_business_events todo_app_business_events[]
+  todo_app_event_counters_daily todo_app_event_counters_daily[]
+  todo_app_audit_logs_of_actor_user_id todo_app_audit_logs[] @relation("todo_app_audit_logs_of_actor_user_id")
+  todo_app_audit_logs_of_target_user_id todo_app_audit_logs[] @relation("todo_app_audit_logs_of_target_user_id")
+  todo_app_admin_actions_of_admin_user_id todo_app_admin_actions[] @relation("todo_app_admin_actions_of_admin_user_id")
+  todo_app_admin_actions_of_target_user_id todo_app_admin_actions[] @relation("todo_app_admin_actions_of_target_user_id")
+  todo_app_account_status_changes_of_target_user_id todo_app_account_status_changes[] @relation("todo_app_account_status_changes_of_target_user_id")
+  todo_app_account_status_changes_of_admin_user_id todo_app_account_status_changes[] @relation("todo_app_account_status_changes_of_admin_user_id")
+  todo_app_data_exports todo_app_data_exports[]
+  todo_app_account_deletion_requests todo_app_account_deletion_requests[]
+  todo_app_privacy_consents todo_app_privacy_consents[]
+  todo_app_user_rate_counters todo_app_user_rate_counters[]
+  todo_app_aggregated_metrics todo_app_aggregated_metrics[]
+  
+  @@unique([email])
+  @@index([status, created_at])
+}
+
+/// Supplemental user profile information attached to a single {@link
+/// todo_app_users} account. Contains human-facing attributes for display and
+/// search. Managed through the owning user; not independently meaningful for
+/// access control.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_user_profiles {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Owning user's {@link todo_app_users.id}. Enforces 1:1 relationship
+  /// between a user and a profile.
+  todo_app_user_id String
+  
+  /// User's full name for display purposes. Purely presentational; not used
+  /// for authentication.
+  full_name String?
+  
+  /// Optional nickname or handle for casual display contexts.
+  nickname String?
+  
+  /// Optional URI to the user's avatar image resource.
+  avatar_uri String?
+  
+  /// Creation timestamp for the profile.
+  created_at DateTime
+  
+  /// Last update timestamp for the profile.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp of the profile record.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@unique([todo_app_user_id])
+  
+  @@index([created_at])
+}
+
+/// Per-user preference settings that affect behavior and presentation (e.g.,
+/// timezone, locale, pagination). Managed via the user context and used to
+/// interpret due dates and UI text. One-to-one with {@link todo_app_users}.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_user_preferences {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Owner user's {@link todo_app_users.id}. One-to-one preference record.
+  todo_app_user_id String
+  
+  /// IANA timezone identifier (e.g., "Asia/Seoul") interpreting due dates and
+  /// times for this user.
+  timezone String
+  
+  /// BCP 47 language tag for UI text conventions (e.g., "en-US").
+  locale String
+  
+  /// Default pagination size for lists. Business rule: 1–100; common default
+  /// is 20.
+  page_size Int
+  
+  /// Creation timestamp for the preferences record.
+  created_at DateTime
+  
+  /// Last update timestamp for the preferences record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp of the preferences record.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@unique([todo_app_user_id])
+  
+  @@index([timezone, created_at])
+}
+
+/// Role assignment history for when a {@link todo_app_users} account holds
+/// the guestVisitor role. Stores multiple grant/revoke events over time to
+/// preserve audit history. Managed by governance logic; not user-editable.
+/// Queries typically order by granted_at and filter by current (revoked_at
+/// IS NULL) membership.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_guestvisitors {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Assigned user's {@link todo_app_users.id}. Allows multiple historical
+  /// assignments for the same user.
+  todo_app_user_id String
+  
+  /// Timestamp when the guestVisitor role was granted.
+  granted_at DateTime
+  
+  /// Timestamp when the role was revoked. Null when currently active.
+  revoked_at DateTime?
+  
+  /// Creation timestamp for the role assignment record.
+  created_at DateTime
+  
+  /// Last update timestamp for the role assignment record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for retention without hard delete.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_app_user_id, granted_at])
+  @@index([granted_at, created_at])
+}
+
+/// Role assignment history for when a {@link todo_app_users} account holds
+/// the todoUser role. Supports multiple grant/revoke cycles for
+/// auditability. Not user-editable; maintained by system governance
+/// workflows.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_todousers {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Assigned user's {@link todo_app_users.id}. Allows multiple historical
+  /// assignments for the same user.
+  todo_app_user_id String
+  
+  /// Timestamp when the todoUser role was granted.
+  granted_at DateTime
+  
+  /// Timestamp when the role was revoked. Null when currently active.
+  revoked_at DateTime?
+  
+  /// Creation timestamp for the role assignment record.
+  created_at DateTime
+  
+  /// Last update timestamp for the role assignment record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for retention without hard delete.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_app_user_id, granted_at])
+  @@index([granted_at, created_at])
+}
+
+/// Role assignment history for when a {@link todo_app_users} account holds
+/// the systemAdmin role. Preserves multiple grant/revoke events over time
+/// for governance audits. Not user-editable; managed by administrators.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_systemadmins {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Assigned user's {@link todo_app_users.id}. Allows multiple historical
+  /// assignments for the same user.
+  todo_app_user_id String
+  
+  /// Timestamp when the systemAdmin role was granted.
+  granted_at DateTime
+  
+  /// Timestamp when the role was revoked. Null when currently active.
+  revoked_at DateTime?
+  
+  /// Creation timestamp for the role assignment record.
+  created_at DateTime
+  
+  /// Last update timestamp for the role assignment record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for retention without hard delete.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_app_user_id, granted_at])
+  @@index([granted_at, created_at])
+}

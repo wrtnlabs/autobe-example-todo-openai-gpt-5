@@ -1,0 +1,184 @@
+/// Business event taxonomy for todoApp. Each record defines a stable code
+/// and human-readable name for a class of events (e.g., "todo.created",
+/// "todo.completed"). Referenced by {@link todo_app_business_events} to
+/// classify occurrences. Enables governance (enable/disable types) and
+/// consistent analytics grouping across the system.
+///
+/// @namespace Events
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_event_types {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Stable machine-readable identifier of the event type (e.g.,
+  /// "todo.created"). Used in integrations and analytics and must remain
+  /// stable.
+  code String
+  
+  /// Human-readable title of the event type for administration and reporting.
+  name String
+  
+  /// Optional longer description of when and why this event type is emitted.
+  description String?
+  
+  /// Whether this event type is currently enabled for emission within the
+  /// system.
+  active Boolean
+  
+  /// Record creation timestamp.
+  created_at DateTime
+  
+  /// Record last update timestamp.
+  updated_at DateTime
+  
+  //----
+  // RELATIONS
+  //----
+  todo_app_business_events todo_app_business_events[]
+  todo_app_event_counters_daily todo_app_event_counters_daily[]
+  todo_app_aggregated_metrics todo_app_aggregated_metrics[]
+  
+  @@unique([code])
+  @@index([active])
+  @@index([created_at])
+}
+
+/// Append-only business event log capturing user-facing domain events across
+/// todoApp. Each event references an {@link todo_app_event_types}
+/// classification and may optionally reference the actor's {@link
+/// todo_app_users} and a target {@link todo_app_todos}. Session context via
+/// {@link todo_app_sessions} is optional. Stores raw, non-derived attributes
+/// only (timestamps, message, source metadata) for auditability and
+/// analytics ingestion. Referential actions are configured to preserve
+/// history (Restrict on types; SetNull on optional links).
+///
+/// @namespace Events
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_business_events {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Event classification reference. Target model's {@link
+  /// todo_app_event_types.id}
+  todo_app_event_type_id String
+  
+  /// Optional actor reference when the event is associated with a signed-in
+  /// user. Target model's {@link todo_app_users.id}
+  todo_app_user_id String?
+  
+  /// Optional target Todo reference when the event pertains to a specific
+  /// Todo. Target model's {@link todo_app_todos.id}
+  todo_app_todo_id String?
+  
+  /// Optional session context. Target model's {@link todo_app_sessions.id}
+  todo_app_session_id String?
+  
+  /// Timestamp when the business event actually occurred (domain time).
+  occurred_at DateTime
+  
+  /// Optional human-readable message or summary describing the event in
+  /// business terms (used for search and diagnostics).
+  message String?
+  
+  /// Optional emitter or subsystem identifier providing origin context (e.g.,
+  /// "web", "api", "job").
+  source String?
+  
+  /// Optional external or upstream event identifier to enable idempotency and
+  /// deduplication across ingestion pipelines.
+  external_id String?
+  
+  /// Optional best-effort client IP captured at event time for security and
+  /// analytics use-cases in accordance with policy.
+  ip String?
+  
+  /// Optional user agent string captured at event time for diagnostics and
+  /// product analytics.
+  user_agent String?
+  
+  /// Record creation timestamp (ingestion time).
+  created_at DateTime
+  
+  /// Record last update timestamp (system-managed).
+  updated_at DateTime
+  
+  //----
+  // RELATIONS
+  //----
+  eventType todo_app_event_types @relation(fields: [todo_app_event_type_id], references: [id], onDelete: Cascade)
+  actorUser todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  targetTodo todo_app_todos? @relation(fields: [todo_app_todo_id], references: [id], onDelete: Cascade)
+  session todo_app_sessions? @relation(fields: [todo_app_session_id], references: [id], onDelete: Cascade)
+  
+  @@unique([source, external_id])
+  @@index([todo_app_event_type_id, occurred_at])
+  @@index([todo_app_user_id, occurred_at])
+  @@index([todo_app_todo_id, occurred_at])
+  @@index([todo_app_session_id, occurred_at])
+  @@index([occurred_at])
+  @@index([ip, occurred_at])
+  @@index([source, occurred_at])
+}
+
+/// Daily counters for business events to support KPI queries. Each row
+/// summarizes the count of occurrences for an {@link todo_app_event_types}
+/// on a given calendar day bucket. Optionally scoped by actor {@link
+/// todo_app_users} and/or target {@link todo_app_todos}. Maintained by
+/// application processes; contains only raw counts and timestamps (no
+/// derived rollups beyond the defined bucket). Referential actions preserve
+/// history (Restrict on types; SetNull on optional links).
+///
+/// @namespace Events
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_event_counters_daily {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Classified event type being counted. Target model's {@link
+  /// todo_app_event_types.id}
+  todo_app_event_type_id String
+  
+  /// Optional actor user scope for the daily count. Target model's {@link
+  /// todo_app_users.id}
+  todo_app_user_id String?
+  
+  /// Optional target Todo scope for the daily count. Target model's {@link
+  /// todo_app_todos.id}
+  todo_app_todo_id String?
+  
+  /// Start of the calendar day (00:00:00) in the chosen reference timezone
+  /// representing the counting bucket.
+  bucket_date DateTime
+  
+  /// Total number of events observed for the specified dimensions within the
+  /// bucket day.
+  count Int
+  
+  /// Record creation timestamp.
+  created_at DateTime
+  
+  /// Record last update timestamp.
+  updated_at DateTime
+  
+  //----
+  // RELATIONS
+  //----
+  eventType todo_app_event_types @relation(fields: [todo_app_event_type_id], references: [id], onDelete: Cascade)
+  actorUser todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  targetTodo todo_app_todos? @relation(fields: [todo_app_todo_id], references: [id], onDelete: Cascade)
+  
+  @@unique([bucket_date, todo_app_event_type_id, todo_app_user_id, todo_app_todo_id], map: "todo_app_event_counters_daily_bucket_date_todo_app_eve_0dec3d40")
+  @@index([bucket_date])
+  @@index([todo_app_event_type_id, bucket_date], map: "todo_app_event_counters_daily_todo_app_event_type_id_b_8aed441e")
+  @@index([todo_app_user_id, bucket_date])
+  @@index([todo_app_todo_id, bucket_date])
+}

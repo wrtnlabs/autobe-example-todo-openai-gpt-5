@@ -1,0 +1,174 @@
+/// Historical aggregated metrics snapshots for the todo application. Each
+/// row captures a metric value over a defined time window and optional
+/// dimensions (e.g., by user or event type). This table preserves
+/// time-series history for auditability and trend analysis. It references
+/// existing domain entities for dimensional filtering but does not duplicate
+/// their attributes. Related materialized views like {@link
+/// mv_todo_app_daily_stats} and {@link mv_todo_app_kpi_counters} provide
+/// read-optimized rollups.
+///
+/// @namespace Metrics
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_aggregated_metrics {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Optional owner dimension for the metric snapshot. Target model's {@link
+  /// todo_app_users.id}.
+  todo_app_user_id String?
+  
+  /// Optional event type dimension for the metric snapshot. Target model's
+  /// {@link todo_app_event_types.id}.
+  todo_app_event_type_id String?
+  
+  /// Business metric identifier (e.g., 'todos.created', 'todos.completed',
+  /// 'latency.p95'). Used to group and query snapshots.
+  metric_key String
+  
+  /// Time bucket level of aggregation such as 'hour', 'day', 'week', or
+  /// 'month'.
+  granularity String
+  
+  /// Inclusive start timestamp of the snapshot's aggregation window in UTC.
+  period_start DateTime
+  
+  /// Exclusive end timestamp of the snapshot's aggregation window in UTC.
+  period_end DateTime
+  
+  /// Aggregated numeric value for the metric within the period window.
+  value Float
+  
+  /// Measurement unit of the value (e.g., 'count', 'ms', 'hours').
+  unit String
+  
+  /// Record creation timestamp.
+  created_at DateTime
+  
+  /// Record last update timestamp.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp. Null when active.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_app_users? @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  eventType todo_app_event_types? @relation(fields: [todo_app_event_type_id], references: [id], onDelete: Cascade)
+  
+  @@unique([metric_key, granularity, period_start, period_end, todo_app_user_id, todo_app_event_type_id], map: "todo_app_aggregated_metrics_metric_key_granularity_per_3b010a19")
+  @@index([period_start, period_end])
+  @@index([metric_key, period_start])
+  @@index([todo_app_user_id, period_start])
+  @@index([granularity, period_start])
+  @@index([todo_app_event_type_id, period_start], map: "todo_app_aggregated_metrics_todo_app_event_type_id_per_fa98c8af")
+}
+
+/// Materialized daily statistics for the todo application. Provides
+/// read-optimized, denormalized counts and ratios per calendar day to power
+/// dashboards and reports without scanning raw events. Derived from snapshot
+/// tables and event/audit sources. Related base snapshots: {@link
+/// todo_app_aggregated_metrics}.
+///
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model mv_todo_app_daily_stats {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Calendar date represented at start-of-day (00:00:00) in UTC for which the
+  /// stats apply.
+  stats_date DateTime
+  
+  /// Number of todos created on stats_date.
+  todos_created Int
+  
+  /// Number of todos completed on stats_date.
+  todos_completed Int
+  
+  /// Distinct count of active users performing at least one tracked action on
+  /// stats_date.
+  active_users Int
+  
+  /// Ratio of completed todos to created todos for stats_date.
+  /// Computed/derived in MV.
+  completion_ratio Float
+  
+  /// Timestamp when this MV row was last refreshed from source data.
+  refreshed_at DateTime
+  
+  /// MV row creation timestamp in the materialized cache.
+  created_at DateTime
+  
+  /// MV row last refresh timestamp in the materialized cache.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for MV row if removed from active view logic.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  @@unique([stats_date])
+  @@index([stats_date, updated_at])
+}
+
+/// Materialized KPI counters over sliding or fixed windows for dashboards
+/// and SLO monitoring. Captures high-level indicators such as counts and
+/// latency/throughput KPIs without scanning raw data. Derived and read-only.
+/// Related base: {@link todo_app_aggregated_metrics}.
+///
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model mv_todo_app_kpi_counters {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Inclusive start of the KPI window in UTC.
+  window_start DateTime
+  
+  /// Exclusive end of the KPI window in UTC.
+  window_end DateTime
+  
+  /// Total number of todos created within the KPI window.
+  todos_created Int
+  
+  /// Total number of todos completed within the KPI window.
+  todos_completed Int
+  
+  /// Distinct count of active users within the KPI window.
+  active_users Int
+  
+  /// Average time to complete a todo within the window (hours). May be null
+  /// when insufficient data.
+  avg_time_to_complete_hours Float?
+  
+  /// 95th percentile time to complete a todo within the window (hours). May be
+  /// null when insufficient data.
+  p95_completion_time_hours Float?
+  
+  /// Timestamp when this MV row was last refreshed from source data.
+  refreshed_at DateTime
+  
+  /// MV row creation timestamp in the materialized cache.
+  created_at DateTime
+  
+  /// MV row last refresh timestamp in the materialized cache.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for MV row if removed from active view logic.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  @@unique([window_start, window_end])
+  @@index([window_end, updated_at])
+}

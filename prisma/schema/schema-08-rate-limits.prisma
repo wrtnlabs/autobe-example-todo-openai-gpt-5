@@ -1,0 +1,197 @@
+/// System-wide throttling policy definitions. Administrators define and
+/// manage these limits for different action categories and scopes.
+/// Referenced by {@link todo_app_user_rate_counters} and {@link
+/// todo_app_ip_rate_counters} to enforce fair-use and cooldown behavior.
+/// Contains only configuration attributes (no counters) to maintain strict
+/// 3NF. Typical queries search by category/scope and free-text over
+/// name/description.
+///
+/// @namespace RateLimits
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_rate_limits {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Unique business code identifying the rate limit policy (e.g.,
+  /// "write_per_minute"). Used for configuration management and safe
+  /// references in code or admin tools.
+  code String
+  
+  /// Human-readable name of the policy for admin consoles and documentation.
+  name String
+  
+  /// Detailed admin-facing description of the policy intention, scope, and
+  /// operational notes.
+  description String?
+  
+  /// Scope of application such as "user", "ip", or "global". Determines the
+  /// subject dimension to which counters apply.
+  scope String
+  
+  /// Functional category of actions affected by this policy, e.g., "read",
+  /// "write", or "auth".
+  category String
+  
+  /// Fixed window duration in seconds used to aggregate requests for
+  /// throttling calculations.
+  window_seconds Int
+  
+  /// Maximum allowed requests within the window before throttling is applied.
+  max_requests Int
+  
+  /// Optional token bucket burst size allowing temporary spikes within the
+  /// same window. When null, burst is not applied.
+  burst_size Int?
+  
+  /// Whether the policy uses a sliding window approximation (true) or fixed
+  /// window (false).
+  sliding_window Boolean
+  
+  /// Administrative toggle to enable or disable enforcement of this policy.
+  enabled Boolean
+  
+  /// Creation timestamp of the policy record.
+  created_at DateTime
+  
+  /// Last update timestamp of the policy record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp. When set, the policy is considered archived and
+  /// excluded from normal operations.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  todo_app_user_rate_counters todo_app_user_rate_counters[]
+  todo_app_ip_rate_counters todo_app_ip_rate_counters[]
+  
+  @@unique([code])
+  @@unique([category, scope, window_seconds])
+  @@index([enabled, category])
+  @@index([scope, enabled])
+}
+
+/// Operational counters for applying rate limits per user. Each record
+/// aggregates requests in a specific window for a specific policy.
+/// References {@link todo_app_rate_limits} for configuration and {@link
+/// todo_app_users} for the subject. Used to determine throttling and
+/// cooldowns; not directly managed by end users.
+///
+/// @namespace RateLimits
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_user_rate_counters {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Associated rate limit policy's {@link todo_app_rate_limits.id}.
+  todo_app_rate_limit_id String
+  
+  /// Subject user's {@link todo_app_users.id}.
+  todo_app_user_id String
+  
+  /// Start timestamp of the counting window for this user and policy.
+  window_started_at DateTime
+  
+  /// End timestamp of the counting window for this user and policy.
+  window_ends_at DateTime
+  
+  /// Number of actions recorded within this window for the user under the
+  /// given policy.
+  count Int
+  
+  /// Timestamp of the most recent action contributing to this window's counter.
+  last_action_at DateTime?
+  
+  /// If throttled, the time until which actions should be blocked for this
+  /// user under this policy. Null when not blocked.
+  blocked_until DateTime?
+  
+  /// Creation timestamp of this counter record.
+  created_at DateTime
+  
+  /// Last update timestamp of this counter record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp used for archival/cleanup without hard delete.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  rateLimit todo_app_rate_limits @relation(fields: [todo_app_rate_limit_id], references: [id], onDelete: Cascade)
+  user todo_app_users @relation(fields: [todo_app_user_id], references: [id], onDelete: Cascade)
+  
+  @@unique([todo_app_rate_limit_id, todo_app_user_id, window_started_at], map: "todo_app_user_rate_counters_todo_app_rate_limit_id_tod_de455a60")
+  @@index([todo_app_user_id, window_started_at], map: "todo_app_user_rate_counters_todo_app_user_id_window_st_c26d391d")
+  @@index([todo_app_rate_limit_id, window_started_at], map: "todo_app_user_rate_counters_todo_app_rate_limit_id_win_5bd06609")
+  @@index([blocked_until, todo_app_rate_limit_id], map: "todo_app_user_rate_counters_blocked_until_todo_app_rat_6ff502ab")
+  @@index([todo_app_user_id, todo_app_rate_limit_id, window_started_at], map: "todo_app_user_rate_counters_todo_app_user_id_todo_app__6434c67d")
+  @@index([todo_app_user_id, todo_app_rate_limit_id, blocked_until], map: "todo_app_user_rate_counters_todo_app_user_id_todo_app__51c46dd1")
+}
+
+/// Operational counters for applying rate limits per IP address. Each record
+/// aggregates requests in a specific window for a specific policy.
+/// References {@link todo_app_rate_limits} for configuration. Intended for
+/// abuse mitigation where user identity is absent or unreliable.
+///
+/// @namespace RateLimits
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_app_ip_rate_counters {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Associated rate limit policy's {@link todo_app_rate_limits.id}.
+  todo_app_rate_limit_id String
+  
+  /// Client IP address (IPv4 or IPv6 in text form) used as the subject key for
+  /// this counter.
+  ip String
+  
+  /// Start timestamp of the counting window for this IP and policy.
+  window_started_at DateTime
+  
+  /// End timestamp of the counting window for this IP and policy.
+  window_ends_at DateTime
+  
+  /// Number of actions recorded within this window for the IP under the given
+  /// policy.
+  count Int
+  
+  /// Timestamp of the most recent action contributing to this window's counter.
+  last_action_at DateTime?
+  
+  /// If throttled, the time until which actions should be blocked for this IP
+  /// under this policy. Null when not blocked.
+  blocked_until DateTime?
+  
+  /// Creation timestamp of this counter record.
+  created_at DateTime
+  
+  /// Last update timestamp of this counter record.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp used for archival/cleanup without hard delete.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  rateLimit todo_app_rate_limits @relation(fields: [todo_app_rate_limit_id], references: [id], onDelete: Cascade)
+  
+  @@unique([todo_app_rate_limit_id, ip, window_started_at], map: "todo_app_ip_rate_counters_todo_app_rate_limit_id_ip_wi_018860fb")
+  @@index([ip, window_started_at])
+  @@index([todo_app_rate_limit_id, window_started_at], map: "todo_app_ip_rate_counters_todo_app_rate_limit_id_windo_e8111b78")
+  @@index([blocked_until, todo_app_rate_limit_id], map: "todo_app_ip_rate_counters_blocked_until_todo_app_rate__04cc1aa0")
+  @@index([ip, todo_app_rate_limit_id, window_started_at], map: "todo_app_ip_rate_counters_ip_todo_app_rate_limit_id_wi_767509f7")
+  @@index([ip, todo_app_rate_limit_id, blocked_until], map: "todo_app_ip_rate_counters_ip_todo_app_rate_limit_id_bl_21ec0998")
+}
