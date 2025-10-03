@@ -1,0 +1,64 @@
+/// Authentication session records for todoMvp. Each session represents a
+/// signed-in state for an authenticated actor (user or admin). A session
+/// links to either a {@link todo_mvp_users} or a {@link todo_mvp_admins}
+/// record (exactly one typically populated by application rules). Lifecycle
+/// is governed by timestamps: created_at/updated_at for audit,
+/// last_accessed_at for idle timeout handling, expires_at for absolute TTL,
+/// and revoked_at when a user signs out. Sessions are system-managed
+/// artifacts supporting authentication and authorization; not a
+/// user-authored content entity.
+///
+/// @namespace Auth
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_sessions {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Authenticated user owner of this session. Target model's {@link
+  /// todo_mvp_users.id}.
+  todo_mvp_user_id String?
+  
+  /// Authenticated admin owner of this session. Target model's {@link
+  /// todo_mvp_admins.id}.
+  todo_mvp_admin_id String?
+  
+  /// Hashed representation of the session bearer token for lookup and
+  /// validation (plaintext tokens are never stored). Uniquely identifies a
+  /// session.
+  session_token_hash String
+  
+  /// Session creation timestamp (when sign-in succeeded).
+  created_at DateTime
+  
+  /// Last time this session record itself was modified (e.g., token rotation
+  /// or administrative change).
+  updated_at DateTime
+  
+  /// Most recent time the session was actively used. Supports inactivity
+  /// timeouts and security analytics.
+  last_accessed_at DateTime
+  
+  /// Absolute expiration time after which this session is no longer valid,
+  /// regardless of activity.
+  expires_at DateTime
+  
+  /// Timestamp when the session was explicitly revoked (e.g., sign-out). Null
+  /// means not revoked.
+  revoked_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  user todo_mvp_users? @relation(fields: [todo_mvp_user_id], references: [id], onDelete: Cascade)
+  admin todo_mvp_admins? @relation(fields: [todo_mvp_admin_id], references: [id], onDelete: Cascade)
+  
+  @@unique([session_token_hash])
+  @@index([expires_at])
+  @@index([todo_mvp_user_id, expires_at])
+  @@index([todo_mvp_admin_id, expires_at])
+  @@index([todo_mvp_user_id, revoked_at, expires_at])
+  @@index([todo_mvp_admin_id, revoked_at, expires_at])
+}

@@ -1,261 +1,255 @@
-# MVP Business Requirements for todoApp
+# Requirements Analysis — Todo MVP
 
-## 1. Business Objectives and Success Definition
-- Provide a minimal, reliable personal task service that enables individuals to capture, track, and complete their own todos with minimal friction.
-- Focus on the smallest viable scope: create, read/list, update, complete/uncomplete, delete; basic filtering and search; register, login, logout.
-- Enforce privacy boundaries: each authenticated user accesses only their own data; administrators do not routinely view private todo content.
-- Favor clarity and testability over feature depth to accelerate delivery.
+Audience: newcomers to development and the delivery team building the smallest useful Todo list application. Focus: absolute minimum features with clear, testable business behavior written in plain language using EARS formatting.
 
-Success definition (business-level):
-- A new user registers, logs in, creates at least one todo, updates it, completes it, reopens it, deletes it, and logs out successfully.
-- Listing, filtering, and search operate only over the user’s own todos.
-- Common actions complete within user-perceived acceptable timeframes under typical usage conditions.
+## 1. Vision and Scope Summary
 
-## 2. Scope and Boundaries (MVP)
+Problem and goal
+- Individuals need a fast, distraction-free way to capture tasks, see what remains, and mark items done. Complex features slow people down and increase confusion.
 
-### 2.1 In Scope
-- Account lifecycle: register, login, logout.
-- Personal todo management: create, read/list, update, complete/uncomplete, delete.
-- Listing, paging, sorting, filtering, keyword search (own todos only).
-- Minimal validation and clear user messages for errors.
+Target users and value
+- Single, authenticated individuals who manage only their own tasks. Value comes from speed, clarity, privacy, and predictable behavior.
 
-### 2.2 Out of Scope (Explicit)
-- Collaboration or sharing across users.
-- Subtasks, tags/labels, priorities, projects/folders.
-- Attachments or file uploads.
-- Reminders/notifications and calendar integrations.
-- Recurring tasks.
-- Bulk operations (bulk delete/complete).
-- Offline mode and device sync beyond standard authenticated sessions.
-- Third-party integrations or public APIs.
-- Multi-language UI (MVP uses en-US); localization is future scope.
+MVP boundaries (business-level)
+- Include only: create, list, update (title/notes/due), complete/uncomplete, delete; minimal authentication; basic filtering/sorting; simple, clear error handling.
+- Exclude collaboration, tags, reminders, attachments, recurring tasks, import/export, social features, and any advanced account features.
 
-## 3. User Roles and Permissions
+## 2. Roles and Access Overview
 
-Roles use camelCase identifiers and are expressed in business terms.
+Roles
+- Guest: unauthenticated visitor; may read public information pages only; no Todo access.
+- User: authenticated person managing only their own Todos.
+- Admin: limited administrator for operational oversight (aggregate usage, account lifecycle); does not browse or edit member Todo content in MVP.
 
-- guestVisitor (guest): Unauthenticated visitor. Access limited to public pages and starting registration or login. No access to any todo content.
-- todoUser (member): Authenticated user. Full control over personal todo items only; can list, search, filter, create, update, complete/uncomplete, delete own items.
-- systemAdmin (admin): Operational administrator for governance tasks (e.g., suspend/reactivate accounts, view aggregated service metrics). No routine access to private todo content.
+Ownership principle
+- Every Todo belongs to exactly one User. No sharing, no delegation, no team lists in MVP.
 
-### 3.1 Permission Matrix (Business-Level)
+EARS requirements (Roles)
+- THE service SHALL restrict all Todo actions to authenticated owners only.
+- IF a Guest attempts any Todo action, THEN THE service SHALL deny the action and guide sign-in.
+- WHEN an Admin requests platform oversight, THE service SHALL provide only aggregate, non-content information in MVP.
 
-| Action (Business) | guestVisitor | todoUser | systemAdmin |
-|-------------------|-------------:|---------:|------------:|
-| View public pages (landing/terms/privacy) | ✅ | ✅ | ✅ |
-| Register account | ✅ | ✅ | ✅ (support context) |
-| Login | ✅ | ✅ | ✅ |
-| Logout (end own session) | ❌ | ✅ | ✅ |
-| Create todo (own) | ❌ | ✅ | ❌ |
-| Read/list todos (own) | ❌ | ✅ | ❌ |
-| Update todo (own) | ❌ | ✅ | ❌ |
-| Complete/uncomplete todo (own) | ❌ | ✅ | ❌ |
-| Delete todo (own) | ❌ | ✅ | ❌ |
-| View other users’ todos | ❌ | ❌ | ❌ |
-| Suspend/reactivate accounts | ❌ | ❌ | ✅ |
-| View aggregated service metrics | ❌ | ❌ | ✅ |
+## 3. Core Functional Requirements (Business-Level)
 
-Notes:
-- "Own" refers strictly to the authenticated user’s personal items.
-- Aggregated metrics exclude personal content and cannot reveal todo text or identities.
+Todo concept
+- Title (required), Notes (optional), Due Date (optional), Status (Active or Completed), Ownership (single user), Timestamps (created, last updated; completed time only when completed).
 
-## 4. Functional Requirements (EARS)
+Create
+- Users create a Todo by entering a Title and optionally Notes and Due Date. Default Status is Active.
 
-All EARS keywords are in English. Descriptions use en-US.
+Read/List
+- Users view only their own Todos. Default list focuses on unfinished work with simple ordering and filtering.
 
-### 4.1 Account Lifecycle
-- THE todoApp SHALL enable registration sufficient to allow login to todo features.
-- WHEN a person submits registration with unique email and a policy-compliant password, THE todoApp SHALL create an account and indicate next steps (e.g., login or verification if required by policy).
-- WHEN a registered user submits valid login credentials, THE todoApp SHALL establish an authenticated session and grant access to the user’s own todos.
-- IF a login attempt contains invalid credentials, THEN THE todoApp SHALL deny login without revealing which field is incorrect.
-- WHEN an authenticated user requests logout, THE todoApp SHALL end the current session immediately and revert access to guestVisitor level.
-- IF an unauthenticated person requests logout, THEN THE todoApp SHALL respond gracefully without exposing data or errors.
+Update
+- Users may change Title, Notes, Due Date for their own Todos.
 
-### 4.2 Create Todo
-- THE todoApp SHALL require a non-empty title between 1 and 120 characters after trimming.
-- WHERE a description is provided within limits (0–1000 characters), THE todoApp SHALL store it with the todo.
-- WHERE a due date is provided and is a valid calendar date/time, THE todoApp SHALL accept it using the user’s timezone context.
-- WHEN a todoUser submits a valid create request, THE todoApp SHALL create the todo as active (not completed) and record creation timestamp.
-- IF the title is empty or whitespace-only, THEN THE todoApp SHALL reject creation and identify the rule.
-- IF the due date format is invalid, THEN THE todoApp SHALL reject creation and describe the expected format in business terms.
+Complete/Uncomplete
+- Users may toggle between Active and Completed for their own Todos.
 
-### 4.3 Read/List Own Todos
-- WHEN a todoUser requests their todo list, THE todoApp SHALL return only that user’s todos.
-- THE todoApp SHALL provide default ordering by newest created first.
-- WHERE pagination is not specified, THE todoApp SHALL return 20 items per page by default.
-- WHERE filters are provided, THE todoApp SHALL apply status and due filters as specified.
-- WHERE a keyword is provided, THE todoApp SHALL search case-insensitively in title and description and return only matching items owned by the user.
+Delete
+- Users may permanently remove their own Todos (no recovery in MVP).
 
-### 4.4 Update Todo
-- WHEN a todoUser updates title, description, or due date on an owned todo with valid values, THE todoApp SHALL persist the change and set updated timestamp.
-- IF validation fails for any updated field, THEN THE todoApp SHALL reject the update and identify the specific rule.
-- IF the todo does not belong to the user, THEN THE todoApp SHALL deny the update without revealing resource existence.
+Basic filter/sort
+- Status filter: All, Active, Completed. Minimal sorting: by due date (soonest first) or by creation time (newest first).
 
-### 4.5 Complete/Uncomplete Todo
-- WHEN a todoUser marks an owned todo as completed, THE todoApp SHALL set completed status and record completed timestamp.
-- WHEN a todoUser marks a completed todo as active, THE todoApp SHALL clear the completed timestamp and set status to active.
-- IF a user attempts to toggle completion on a todo they do not own, THEN THE todoApp SHALL deny the action without revealing resource existence.
+EARS requirements (Core)
+- WHEN a user submits a new Todo with a non-empty Title after trimming, THE service SHALL create the Todo as Active and make it visible immediately.
+- WHEN a user lists Todos, THE service SHALL present only that user’s Todos with predictable default ordering.
+- WHEN a user edits Title/Notes/Due Date of their own Todo with valid input, THE service SHALL apply changes and reflect them immediately.
+- WHEN a user toggles completion on their own Todo, THE service SHALL set Status accordingly and reflect changes immediately.
+- WHEN a user deletes their own Todo, THE service SHALL remove it so it no longer appears anywhere for that user.
+- IF a user attempts to act on another person’s Todo, THEN THE service SHALL deny the action without disclosing content.
 
-### 4.6 Delete Todo
-- WHEN a todoUser confirms deletion of an owned todo, THE todoApp SHALL remove it from normal lists immediately for MVP.
-- IF a delete request targets a todo not owned by the user, THEN THE todoApp SHALL deny the action without revealing resource existence.
-- IF a delete request targets an already deleted or non-existent todo, THEN THE todoApp SHALL respond harmlessly indicating no such active item remains.
+## 4. Workflows and User Journeys (Conceptual)
 
-### 4.7 Listing, Sorting, Filtering, Searching
-- THE todoApp SHALL support status filter: all, active, completed (deleted items excluded).
-- WHERE a due filter is set, THE todoApp SHALL support overdue (due before now and not completed), due today (current local date), and future (due after today).
-- WHERE sorting by due date is requested, THE todoApp SHALL order by due date ascending and list items without due date after those with due dates; ties break by creation time (newest first).
-- WHEN a search keyword is provided, THE todoApp SHALL match case-insensitively against title and description substrings.
+High-level sign-in and access
+```mermaid
+graph LR
+  A["Open App"] --> B{"Authenticated?"}
+  B -->|"Yes"| C["Show Personal Todo List"]
+  B -->|"No"| D["Sign Up or Sign In"]
+  D --> C
+```
+
+Todo lifecycle operations
+```mermaid
+graph LR
+  L1["View List"] --> L2["Create Todo"] --> L1
+  L1 --> L3["Edit Fields"] --> L1
+  L1 --> L4["Complete/Uncomplete"] --> L1
+  L1 --> L5["Delete Todo"] --> L1
+```
+
+Authorization decision
+```mermaid
+graph LR
+  X["Attempt Action on Todo"] --> Y{"Authenticated?"}
+  Y -->|"No"| Z["Deny and Prompt Sign-In"]
+  Y -->|"Yes"| O{"Is Owner?"}
+  O -->|"Yes"| P["Allow Action"]
+  O -->|"No"| Q["Deny and Protect Content"]
+```
 
 ## 5. Business Rules and Validation
 
-### 5.1 Fields (Conceptual)
-- Title (required): 1–120 characters after trimming; must include at least one non-whitespace character.
-- Description (optional): 0–1000 characters after trimming.
-- Due date (optional): valid date or date-time interpreted in user’s local timezone (e.g., Asia/Seoul if that is the user’s setting); past dates allowed for state reporting but disallowed when policy requires future-only on create/update (see acceptance section variant below).
-- Status (system-managed): active or completed.
-- Timestamps (system-managed): createdAt, updatedAt, completedAt (when completed).
+Field semantics
+- Title: short description identifying the task; required; trimmed of leading/trailing whitespace; preserves internal spacing.
+- Notes: optional free-form text; multiline allowed; preserves line breaks.
+- Due Date: optional calendar date; time-of-day not required in MVP; treated in user’s local time context.
+- Status: Active or Completed only.
+- Ownership: exactly one owner; no sharing.
+- Timestamps: created time on creation; last updated time on successful edit; completed time only when set to Completed.
 
-### 5.2 Validation Rules (Business-Level)
-- Title must not be empty or whitespace-only after trimming and must not exceed 120 characters.
-- Description must not exceed 1000 characters.
-- Due date, if provided, must be parsable as a calendar date or date-time and associated to user’s timezone for interpretation.
-- Requests must belong to the authenticated owner to proceed with todo operations.
+Validation limits (business-level)
+- Title length: 1–120 characters after trimming.
+- Notes length: up to 1,000 characters.
+- Due Date: must be a valid calendar date if provided; may be in the past (indicates overdue) or future; clearing is allowed.
 
-### 5.3 Status Model and Transitions
-- Allowed states: active, completed.
-- Transitions: active → completed; completed → active; either state → deleted (terminal in MVP).
+EARS requirements (Validation)
+- WHEN a user creates a Todo, THE service SHALL reject the request IF Title is empty after trimming or exceeds limits.
+- WHEN a user updates a Todo, THE service SHALL apply the same validation rules as on creation.
+- WHERE Notes are provided, THE service SHALL accept up to 1,000 characters and treat whitespace-only Notes as empty.
+- WHERE a Due Date is provided, THE service SHALL accept it only if it is a valid calendar date; clearing is permitted.
 
+## 6. Authentication and Session Expectations
+
+Journeys
+- Registration: create an account with basic credentials.
+- Sign-in: authenticate to access the personal Todo list.
+- Sign-out: end session; prevent further access until next sign-in.
+- Session persistence: keep session for a reasonable period; expire after inactivity; explicit sign-out ends immediately.
+
+EARS requirements (Auth)
+- THE authentication subsystem SHALL allow individuals to register, sign in, and sign out.
+- WHILE a session is valid, THE service SHALL associate all Todo actions with that user.
+- WHEN a session expires or the user signs out, THE service SHALL require sign-in again before any Todo action.
+- IF a Guest attempts a protected action, THEN THE service SHALL deny the action and guide sign-in.
+
+## 7. Authorization and Permission Requirements
+
+Role capabilities (business-only)
+- Guest: view public pages; cannot view or act on any Todo.
+- User: full control over own Todos only.
+- Admin: platform-level aggregates and account lifecycle; cannot browse or edit member Todo content in MVP.
+
+EARS requirements (Authorization)
+- THE authorization model SHALL restrict reads and writes to the owner’s Todos only.
+- WHEN a user lists or reads Todos, THE service SHALL return only items owned by that user.
+- WHEN a user edits, completes/uncompletes, or deletes a Todo, THE service SHALL permit the action only if the user owns that Todo.
+- IF an Admin attempts to read or modify member Todo content in MVP, THEN THE service SHALL deny the action.
+
+## 8. Error Handling and Recovery (Business Language)
+
+Principles
+- Short, clear messages; no technical jargon. Preserve valid input where feasible. Treat repeated submissions safely (idempotent behavior for status toggles and safe retries).
+
+Key outcomes
+- Validation failure: identify the field and rule; allow correction without losing other entries.
+- Ownership denial: state that only the owner can act; protect content.
+- Authentication failure/expiry: indicate sign-in required; preserve unsaved work where feasible.
+- Not found/Already deleted: inform no action needed; recommend refreshing list.
+- Concurrency conflict: inform change elsewhere; advise refresh and retry.
+
+EARS requirements (Errors)
+- IF validation fails, THEN THE service SHALL reject the operation, state the rule violated, and retain valid inputs where feasible.
+- IF ownership is invalid, THEN THE service SHALL deny the action without revealing content.
+- WHEN a session expires during an action, THE service SHALL stop the action and require sign-in, preserving input where feasible.
+- WHEN a duplicate or repeat toggle is submitted, THE service SHALL confirm the final state without error.
+
+## 9. Non-Functional Requirements (User-Centric)
+
+Performance targets (normal conditions)
+- List up to 100 items: P95 within 600 ms.
+- Create, update, complete/uncomplete, delete: P95 within 700–800 ms.
+- Authentication: P95 within 1,000 ms.
+- Hard ceiling for any operation: 2,000 ms, after which recovery guidance applies.
+
+Availability and reliability
+- Target 99.5% monthly availability for core features.
+- Confirmed writes are durable and visible on subsequent reads within 1 second in normal conditions.
+
+Security and privacy (business-level)
+- Authentication required for any Todo access. No exposure of another user’s content. Minimize personal data collection. Do not surface technical error details.
+
+Accessibility
+- Core tasks possible without pointer-only interactions; text-based feedback for outcomes to support assistive technologies.
+
+EARS requirements (NFR)
+- THE service SHALL meet or exceed the P95 targets above under normal load.
+- WHERE load spikes occur, THE service SHALL maintain critical operation responsiveness and may defer large list retrieval.
+- THE service SHALL deny access to Todo data unless authenticated.
+
+## 10. Data Lifecycle and Retention (Conceptual)
+
+Lifecycle states
+- Active, Completed, Deleted (terminal). No archive or recycle bin in MVP.
+
+Diagram
 ```mermaid
-graph LR
-  A["active"] -->|"complete"| B["completed"]
-  B -->|"reopen"| A
-  A -->|"delete"| C["deleted"]
-  B -->|"delete"| C
+stateDiagram-v2
+  direction LR
+  ["start"] --> "Active"
+  "Active" --> "Completed": "Toggle to Completed"
+  "Completed" --> "Active": "Toggle to Active"
+  "Active" --> "Deleted": "Delete"
+  "Completed" --> "Deleted": "Delete"
 ```
 
-### 5.4 Sorting, Filtering, and Search Logic
-- Default sort: createdAt descending (newest first).
-- Due date sort: ascending; items without due date appear after those with due date.
-- Status filter: active-only, completed-only, or all (excluding deleted).
-- Due filters: overdue (due < now and not completed), today (same local date and not completed), future (due > today and not completed).
-- Search behavior: case-insensitive substring matches; empty or whitespace-only search treated as no search input.
+Retention principles
+- Todos persist indefinitely until user deletion. Deletion is immediate and irreversible from the user’s perspective in MVP. Admin compliance deletion uses the same permanence principle.
 
-### 5.5 Pagination Rules
-- Default page size: 20 items when not specified.
-- Allowed page sizes: 1 to 100 items per page.
+EARS requirements (Lifecycle)
+- WHEN a Todo is created, THE service SHALL set Status to Active and record created time.
+- WHEN a Todo is completed, THE service SHALL set Status to Completed and record completed time.
+- WHEN a Todo is uncompleted, THE service SHALL set Status to Active and clear completed time.
+- WHEN a Todo is deleted, THE service SHALL remove it so it no longer appears in list or detail views.
 
-## 6. Error Handling and Recovery (Business-Facing)
+## 11. Acceptance Criteria (EARS Consolidated)
 
-- WHEN a validation rule fails, THE todoApp SHALL provide a specific message describing the field and rule and SHALL not persist changes.
-- WHEN authentication is missing or expired, THE todoApp SHALL communicate that sign-in is required and SHALL not perform the action.
-- WHEN authorization is insufficient (e.g., cross-user access attempt), THE todoApp SHALL deny the action without revealing resource existence.
-- WHEN a conflict occurs due to stale state (e.g., item deleted elsewhere), THE todoApp SHALL inform the user and suggest refreshing the list.
-- WHEN temporary unavailability or timeouts occur, THE todoApp SHALL communicate retry guidance in plain language.
+Access and ownership
+- THE service SHALL restrict Todo visibility and actions to the authenticated owner.
+- IF a Guest or another user attempts access, THEN THE service SHALL deny without revealing content.
 
-Illustrative validation and auth gating:
+Create
+- WHEN a user submits Title with at least one non-space character after trimming, THE service SHALL create the Todo as Active and show it immediately.
+- IF Title is empty or exceeds 120 characters after trimming, THEN THE service SHALL reject creation and indicate the rule.
 
-```mermaid
-graph LR
-  A["Submit Action"] --> B{"Valid Input?"}
-  B -->|"No"| C["Show Field-Specific Message"]
-  B -->|"Yes"| D{"Authenticated?"}
-  D -->|"No"| E["Prompt to Sign In"]
-  D -->|"Yes"| F{"Authorized (Own Item)?"}
-  F -->|"No"| G["Deny Without Revealing Existence"]
-  F -->|"Yes"| H["Apply Change and Confirm"]
-```
+Read/List
+- THE service SHALL show only the owner’s Todos.
+- THE service SHALL support a status filter of All, Active, Completed and at least one default sort (due date ascending or creation time newest first).
 
-## 7. Performance and Non-Functional Expectations (User Terms)
+Update
+- WHEN Title/Notes/Due Date are changed with valid values, THE service SHALL apply changes and update last updated time.
+- IF a changed field violates its rule, THEN THE service SHALL reject the entire change and preserve prior values.
 
-- WHEN a todoUser lists up to 200 of their own todos, THE todoApp SHALL return results within 2 seconds for at least 95% of attempts under normal load.
-- WHEN creating, updating, completing, or deleting a todo, THE todoApp SHALL confirm the action within 2 seconds for at least 95% of attempts under normal load.
-- WHEN performing keyword search over own todos, THE todoApp SHALL return results within 3 seconds for at least 95% of attempts under normal load.
-- WHILE a session is active, THE todoApp SHALL authorize only the session owner’s actions and SHALL deny other users’ data access in 100% of tested cases.
+Complete/Uncomplete
+- WHEN completion is toggled, THE service SHALL set Status accordingly and update ordering to reflect status and sort rules.
 
-## 8. Acceptance Criteria (Consolidated EARS)
+Delete
+- WHEN a user confirms deletion of their own Todo, THE service SHALL remove it so it no longer appears in any list.
+- IF deletion targets an item that no longer exists, THEN THE service SHALL indicate no action is needed and invite refresh.
 
-Account lifecycle
-- WHEN registration inputs are valid and unique, THE todoApp SHALL create an account and enable login.
-- IF login credentials are invalid, THEN THE todoApp SHALL deny login without revealing whether the email exists.
-- WHEN logout is requested by an authenticated user, THE todoApp SHALL end the session immediately.
+Non-functional
+- THE service SHALL reflect successful list and mutation actions to the user within 2 seconds under normal conditions, with P95 targets as stated.
 
-Create todo
-- WHEN a todoUser submits a title 1–120 characters and optional fields within limits, THE todoApp SHALL create the todo as active and record creation time.
-- IF the title is empty after trimming or exceeds 120 characters, THEN THE todoApp SHALL reject creation with a specific message.
-- IF the description exceeds 1000 characters, THEN THE todoApp SHALL reject creation with a specific message.
-- IF the due date is not a valid date/time, THEN THE todoApp SHALL reject creation with format guidance.
+## 12. Out-of-Scope (Strict MVP)
 
-Read/list own todos
-- WHEN a todoUser requests their todo list, THE todoApp SHALL return only that user’s todos sorted by newest first by default.
-- WHERE no page size is specified, THE todoApp SHALL return 20 items per page.
+- Collaboration, shared lists, team features, or role delegation.
+- Tags, labels, priorities, projects/folders, or custom fields.
+- Reminders, notifications, recurring tasks, or calendar integrations.
+- Attachments, images, or file uploads.
+- Bulk operations, drag-and-drop ordering, or advanced sorting/filtering.
+- Import/export, data migration, or third-party integrations.
+- Admin content browsing or moderation of member Todos (beyond compliance deletion, which does not reveal content).
+- Advanced authentication (social login, 2FA), password reset, or email verification.
 
-Update todo
-- WHEN a todoUser updates an owned todo with valid values, THE todoApp SHALL persist changes and update the last modified time.
-- IF any updated field violates its rule, THEN THE todoApp SHALL reject the update and identify the field.
+## 13. Glossary
 
-Complete/uncomplete
-- WHEN a todoUser marks an owned todo as completed, THE todoApp SHALL set completed status and record completion time.
-- WHEN a todoUser reopens a completed todo, THE todoApp SHALL set status to active and clear completion time.
+- Active: Todo is not yet completed.
+- Completed: Todo marked done by the owner; remains editable; can be toggled back to Active.
+- Deleted: Terminal state; item removed from user views; no recovery in MVP.
+- Owner: The authenticated user account that created and controls the Todo.
+- EARS: Easy Approach to Requirements Syntax; pattern for writing precise, testable requirements.
+- P95: 95th percentile completion time of an operation measured end-to-end under normal conditions.
 
-Delete todo
-- WHEN a todoUser confirms deletion of an owned todo, THE todoApp SHALL remove it from normal views immediately.
-- IF the todo does not exist or was already deleted, THEN THE todoApp SHALL respond without fatal error and indicate no such active item remains.
-
-Filters and search
-- WHERE status filters are applied, THE todoApp SHALL include only items matching the selected status.
-- WHERE due filters are applied, THE todoApp SHALL include only items matching the selected time window and not completed when applicable.
-- WHERE a search term is provided, THE todoApp SHALL match case-insensitively against title and description substrings.
-
-Privacy and access
-- THE todoApp SHALL restrict access to todo data so users can access only their own items.
-- IF a cross-user access is attempted, THEN THE todoApp SHALL deny the action and avoid revealing existence.
-
-Performance
-- THE todoApp SHALL meet the response-time targets in Section 7 for 95% of successful requests under normal load.
-
-## 9. KPIs and Measurement Guidance (Business-Level)
-
-- Activation: Percentage of registrations that successfully log in within 24 hours of registration.
-- Task creation velocity: Average number of todos created per weekly active user.
-- Task completion rate: Percentage of created todos completed within 14 days.
-- Retention (week 1): Percentage of new users who perform at least one todo action between day 7 and day 14.
-- Error-free session rate: Percentage of sessions without user-visible validation/auth/system errors.
-- Responsiveness P95: Percentage of operations meeting the 2–3 second targets (by operation type).
-
-Guidance: Use business events (register, login, create, update, complete, delete, list/search) and user-perceived durations. Implementation and tooling are left to the development team.
-
-## 10. Visuals (Mermaid)
-
-Core todo path (conceptual):
-
-```mermaid
-graph LR
-  S["Start(Authenticated)"] --> C["Create Todo(Title Required)"]
-  C --> L["List Own Todos(Default Newest First)"]
-  L --> U["Update Fields(Title/Description/Due)"]
-  L --> T["Toggle Complete/Uncomplete"]
-  L --> D["Delete Todo(Permanent in MVP)"]
-```
-
-Auth gating (conceptual):
-
-```mermaid
-graph LR
-  G["Guest Visitor"] --> Q{"Access Todo Feature?"}
-  Q -->|"Yes"| R["Denied — Sign In Required"]
-  Q -->|"No"| P["Allowed — Public Pages"]
-  A["Login"] --> B["Authenticated Session"]
-  B --> L2["Access Own Todos"]
-  O["Logout"] --> X["Session Ended"]
-```
-
-## 11. Glossary
-- Active: A todo that is not completed.
-- Completed: A todo marked as done; has a completion timestamp.
-- Due date: Optional target date/time for completion; interpreted in the user’s local timezone.
-- Overdue: A todo with due date earlier than now (user’s timezone) and not completed.
-- Session: Period during which a user is authenticated and can access protected actions.
-
----
-Business requirements only. Technical implementation decisions (architecture, APIs, database design, and infrastructure) are at the discretion of the development team; the content above specifies WHAT todoApp must do for MVP, not HOW to build it.
+End of requirements analysis for the minimal Todo MVP.

@@ -1,0 +1,114 @@
+/// Append-only audit trail capturing user- or admin-initiated Todo lifecycle
+/// actions (create, update, complete, uncomplete, delete) for
+/// privacy-preserving accountability. References to actors and targets are
+/// nullable with onDelete: SetNull to preserve audit history after user or
+/// Todo deletion during the retention window. No Todo content (title/notes)
+/// is stored. Typical queries filter by actor or target resource over time.
+///
+/// @namespace Audits
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_audit_events {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Acting user's {@link todo_mvp_users.id}. Nullable to preserve records
+  /// after user deletion.
+  todo_mvp_user_id String?
+  
+  /// Optional acting admin's {@link todo_mvp_admins.id}. Nullable and
+  /// preserved via onDelete: SetNull.
+  todo_mvp_admin_id String?
+  
+  /// Target Todo's {@link todo_mvp_todos.id}. Nullable to preserve records
+  /// after Todo deletion.
+  todo_mvp_todo_id String?
+  
+  /// Business event type. Allowed values (examples): "todo_created",
+  /// "todo_updated", "todo_completed", "todo_uncompleted", "todo_deleted".
+  /// Application validates allowed set.
+  event_type String
+  
+  /// Optional short, content-free description for operational context. Must
+  /// not include Todo content (title/notes).
+  event_description String?
+  
+  /// Event creation time (audit record creation).
+  created_at DateTime
+  
+  /// Timestamp of the last administrative correction to this audit record, if
+  /// any.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for retention management. When set, the record is
+  /// logically removed from standard reads.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  actorUser todo_mvp_users? @relation(fields: [todo_mvp_user_id], references: [id], onDelete: Cascade)
+  actorAdmin todo_mvp_admins? @relation(fields: [todo_mvp_admin_id], references: [id], onDelete: Cascade)
+  targetTodo todo_mvp_todos? @relation(fields: [todo_mvp_todo_id], references: [id], onDelete: Cascade)
+  
+  @@index([todo_mvp_user_id, created_at])
+  @@index([todo_mvp_admin_id, created_at])
+  @@index([todo_mvp_todo_id, created_at])
+  @@index([event_type, created_at])
+}
+
+/// Minimal, privacy-preserving records of administrative compliance
+/// removals. References to the acting admin and removed Todo are nullable
+/// with onDelete: SetNull to preserve the record after entity deletion. One
+/// record per removed Todo (unique when not null). No Todo content is
+/// stored.
+///
+/// @namespace Audits
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_compliance_removal_records {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Acting administrator's {@link todo_mvp_admins.id}. Nullable to maintain
+  /// record integrity if the admin account is deleted later.
+  todo_mvp_admin_id String?
+  
+  /// Removed Todo's {@link todo_mvp_todos.id}. Nullable to allow the record to
+  /// persist after the Todo is deleted.
+  todo_mvp_todo_id String?
+  
+  /// High-level reason code for compliance removal (examples:
+  /// "policy_violation", "legal_request", "user_request_via_admin"). No Todo
+  /// content allowed.
+  reason_code String
+  
+  /// Optional administrative notes that must not include user Todo content.
+  notes String?
+  
+  /// Timestamp when the removal took effect from the user's perspective.
+  action_effective_at DateTime
+  
+  /// Record creation time.
+  created_at DateTime
+  
+  /// Timestamp of the last administrative correction to this record, if any.
+  updated_at DateTime
+  
+  /// Soft deletion timestamp for retention and lifecycle control.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  actorAdmin todo_mvp_admins? @relation(fields: [todo_mvp_admin_id], references: [id], onDelete: Cascade)
+  removedTodo todo_mvp_todos? @relation(fields: [todo_mvp_todo_id], references: [id], onDelete: Cascade)
+  
+  @@unique([todo_mvp_todo_id])
+  @@index([todo_mvp_admin_id, created_at], map: "todo_mvp_compliance_removal_records_todo_mvp_admin_id__96cb0540")
+  @@index([action_effective_at, created_at], map: "todo_mvp_compliance_removal_records_action_effective_a_7681d069")
+}

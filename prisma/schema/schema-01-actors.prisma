@@ -1,0 +1,125 @@
+/// Guest identities representing unauthenticated visitors. Used to
+/// optionally associate anonymous activity or apply policy limits without
+/// conflating with authenticated {@link todo_mvp_users} or {@link
+/// todo_mvp_admins}. Typically managed indirectly via session flows in
+/// {@link todo_mvp_sessions} (reference-only). Minimal data by design to
+/// honor privacy and MVP scope.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_guests {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Creation timestamp for this guest identity. Enables temporal ordering and
+  /// minimal auditability.
+  created_at DateTime
+  
+  /// Last update timestamp for this guest identity record.
+  updated_at DateTime
+  
+  /// Soft delete timestamp for compliance or cleanup workflows. When set, the
+  /// record is considered removed from active use.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  @@index([created_at, updated_at])
+}
+
+/// Authenticated user accounts for the Todo MVP. Each user owns personal
+/// Todos and operates within strict owner-only boundaries. Includes login
+/// credentials and lifecycle state to support deactivation/reactivation.
+/// Related operational records (sessions, audits) live in {@link
+/// todo_mvp_sessions} and {@link todo_mvp_audit_events} (reference-only).
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_users {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// User’s unique email used for authentication and communication in the MVP.
+  /// Business-unique within users.
+  email String
+  
+  /// Argon2/bcrypt or similar password hash. Never store plain passwords.
+  password_hash String
+  
+  /// Account lifecycle status. Suggested values: "active" or "deactivated" to
+  /// support admin account management.
+  status String
+  
+  /// Timestamp when the user account was created.
+  created_at DateTime
+  
+  /// Timestamp when the user account was last updated.
+  updated_at DateTime
+  
+  /// Soft delete timestamp to support user-initiated account
+  /// deletion/anonymization workflows before permanent purge.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  todo_mvp_sessions todo_mvp_sessions[]
+  todo_mvp_todos todo_mvp_todos[]
+  todo_mvp_audit_events todo_mvp_audit_events[]
+  
+  @@unique([email])
+  @@index([status, created_at])
+}
+
+/// Administrative identities with limited oversight capabilities in MVP
+/// (aggregate metrics, account lifecycle). Admins do not browse or edit
+/// member Todo content per requirements. Managed independently from {@link
+/// todo_mvp_users} for clear authorization boundaries.
+///
+/// @namespace Actors
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_admins {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Admin’s unique email used for authentication. Unique within admins.
+  email String
+  
+  /// Hashed password credential for admin authentication. Never store plain
+  /// passwords.
+  password_hash String
+  
+  /// Admin lifecycle status. Suggested values: "active" or "deactivated" for
+  /// operational control.
+  status String
+  
+  /// Timestamp when the admin account was created.
+  created_at DateTime
+  
+  /// Timestamp when the admin account was last updated.
+  updated_at DateTime
+  
+  /// Soft delete timestamp supporting account closure or compliance workflows
+  /// prior to permanent removal.
+  deleted_at DateTime?
+  
+  //----
+  // RELATIONS
+  //----
+  todo_mvp_sessions todo_mvp_sessions[]
+  todo_mvp_audit_events todo_mvp_audit_events[]
+  todo_mvp_compliance_removal_records todo_mvp_compliance_removal_records[]
+  
+  @@unique([email])
+  @@index([status, created_at])
+}

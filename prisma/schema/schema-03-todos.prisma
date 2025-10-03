@@ -1,0 +1,65 @@
+/// Core Todo items owned by a single authenticated user. Each record
+/// represents one actionable item with a required title, optional notes and
+/// a day-level due date, and a simple lifecycle ("open" or "completed").
+/// Ownership is enforced via a required relation to {@link todo_mvp_users}.
+/// Timestamps support list ordering and audit-friendly visibility
+/// (created/updated, plus completed_at only when status is "completed").
+/// This table intentionally excludes denormalized aggregates and
+/// soft-deletion to match MVP scope and privacy constraints. For due_date,
+/// prefer storing as DATE (no time-of-day) to avoid timezone ambiguity; if
+/// not feasible, normalize consistently (e.g., UTC midnight).
+///
+/// @namespace Todos
+/// @author AutoBE - https://github.com/wrtnlabs/autobe
+model todo_mvp_todos {
+  //----
+  // COLUMNS
+  //----
+  /// Primary Key.
+  id String @id
+  
+  /// Owner user's {@link todo_mvp_users.id}.
+  todo_mvp_user_id String
+  
+  /// Short human-readable label of the task. Required; trimmed by application
+  /// logic; typical length 1–120 characters. Duplicate titles are allowed per
+  /// user.
+  title String
+  
+  /// Optional free-form details for the task. Preserves line breaks; up to
+  /// about 1,000 characters by business rules.
+  notes String?
+  
+  /// Current lifecycle state of the task. Allowed values by business rules:
+  /// "open" or "completed". Defaults to "open" on creation.
+  status String
+  
+  /// Optional day-level target completion date interpreted in the user's local
+  /// time context. Prefer storing as DATE (no time) to avoid timezone
+  /// ambiguity.
+  due_date DateTime?
+  
+  /// Timestamp recorded only when status transitions to "completed". Cleared
+  /// when toggled back to "open".
+  completed_at DateTime?
+  
+  /// Creation timestamp recorded when the Todo is created.
+  created_at DateTime
+  
+  /// Last updated timestamp recorded whenever the Todo is successfully edited
+  /// or its status changes.
+  updated_at DateTime
+  
+  //----
+  // RELATIONS
+  //----
+  owner todo_mvp_users @relation(fields: [todo_mvp_user_id], references: [id], onDelete: Cascade)
+  
+  todo_mvp_audit_events todo_mvp_audit_events[]
+  todo_mvp_compliance_removal_records todo_mvp_compliance_removal_records[]
+  
+  @@index([todo_mvp_user_id, status, created_at])
+  @@index([todo_mvp_user_id, status, due_date])
+  @@index([todo_mvp_user_id, created_at])
+  @@index([todo_mvp_user_id, status, completed_at])
+}

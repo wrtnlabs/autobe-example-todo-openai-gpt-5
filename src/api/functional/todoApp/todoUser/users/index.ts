@@ -1,9 +1,0 @@
-export * as profile from "./profile/index";
-export * as preferences from "./preferences/index";
-export * as sessions from "./sessions/index";
-export * as loginAttempts from "./loginAttempts/index";
-export * as emailVerifications from "./emailVerifications/index";
-export * as passwordResets from "./passwordResets/index";
-export * as dataExports from "./dataExports/index";
-export * as accountDeletionRequests from "./accountDeletionRequests/index";
-export * as privacyConsents from "./privacyConsents/index";
